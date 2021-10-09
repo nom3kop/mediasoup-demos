@@ -79,7 +79,7 @@ const global = {
 // ============
 {
   const expressApp = Express();
-  global.server.expressApp = expressApp;
+  mediaState.server.expressApp = expressApp;
   expressApp.use("/", Express.static(__dirname));
 
   const https = Https.createServer(
@@ -89,7 +89,7 @@ const global = {
     },
     expressApp
   );
-  global.server.https = https;
+  mediaState.server.https = https;
 
   https.on("listening", () => {
     log(`Web server is listening on https://localhost:${CONFIG.https.port}`);
@@ -98,9 +98,11 @@ const global = {
     log.error("HTTPS error:", err.message);
   });
   https.on("tlsClientError", (err) => {
-    if (err.message.includes("alert number 46")) {
+    if (err.message.includes("alert number 46"))
+    {
       // Ignore: this is the client browser rejecting our self-signed certificate
-    } else {
+    } else
+    {
       log.error("TLS error:", err);
     }
   });
@@ -112,21 +114,21 @@ const global = {
 // WebSocket server
 // ================
 {
-  const socketServer = SocketServer(global.server.https, {
+  const socketServer = SocketServer(mediaState.server.https, {
     path: CONFIG.https.wsPath,
     serveClient: false,
     pingTimeout: CONFIG.https.wsPingTimeout,
     pingInterval: CONFIG.https.wsPingInterval,
     transports: ["websocket"],
   });
-  global.server.socketServer = socketServer;
+  mediaState.server.socketServer = socketServer;
 
   socketServer.on("connect", (socket) => {
     log(
       "WebSocket server connected, port: %s",
       socket.request.connection.remotePort
     );
-    global.server.socket = socket;
+    mediaState.server.socket = socket;
 
     // Events sent by the client's "socket.io-promise" have the fixed name
     // "request", and a field "type" that we use as identifier
@@ -146,7 +148,8 @@ const global = {
 async function handleRequest(request, callback) {
   let responseData = null;
 
-  switch (request.type) {
+  switch (request.type)
+  {
     case "START_MEDIASOUP":
       responseData = await handleStartMediasoup();
       break;
@@ -176,13 +179,15 @@ async function handleRequest(request, callback) {
 
 async function handleStartMediasoup() {
   let worker;
-  try {
+  try
+  {
     worker = await Mediasoup.createWorker(CONFIG.mediasoup.worker);
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[handleStartMediasoup] ERROR:", err);
     process.exit(1);
   }
-  global.mediasoup.worker = worker;
+  mediaState.mediasoup.worker = worker;
 
   worker.on("died", () => {
     log.error(
@@ -195,13 +200,15 @@ async function handleStartMediasoup() {
   log("[handleStartMediasoup] mediasoup worker created [pid:%d]", worker.pid);
 
   let router;
-  try {
+  try
+  {
     router = await worker.createRouter(CONFIG.mediasoup.router);
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[handleStartMediasoup] ERROR:", err);
     process.exit(1);
   }
-  global.mediasoup.router = router;
+  mediaState.mediasoup.router = router;
 
   // At this point, the computed "router.rtpCapabilities" includes the
   // router codecs enhanced with retransmission and RTCP capabilities,
@@ -221,18 +228,20 @@ async function handleStartMediasoup() {
 // Creates a mediasoup WebRTC RECV transport
 
 async function handleWebrtcRecvStart() {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
 
   let transport;
-  try {
+  try
+  {
     transport = await router.createWebRtcTransport(
       CONFIG.mediasoup.webrtcTransport
     );
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[handleWebrtcRecvStart] ERROR:", err);
     process.exit(1);
   }
-  global.mediasoup.webrtc.recvTransport = transport;
+  mediaState.mediasoup.webrtc.recvTransport = transport;
 
   log("[handleWebrtcRecvStart] mediasoup WebRTC RECV transport created");
 
@@ -257,18 +266,20 @@ async function handleWebrtcRecvStart() {
 // Creates a mediasoup WebRTC SEND transport
 
 async function handleWebrtcSendStart() {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
 
   let transport;
-  try {
+  try
+  {
     transport = await router.createWebRtcTransport(
       CONFIG.mediasoup.webrtcTransport
     );
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[handleWebrtcSendStart] ERROR:", err);
     process.exit(1);
   }
-  global.mediasoup.webrtc.sendTransport = transport;
+  mediaState.mediasoup.webrtc.sendTransport = transport;
 
   /*
   RTP: [mediasoup --> browser]
@@ -282,9 +293,11 @@ async function handleWebrtcSendStart() {
   */
   await transport.enableTraceEvent(["bwe"]);
   transport.on("trace", async (trace) => {
-    if (trace.type === "bwe") {
-      const transport = global.mediasoup.rtp.recvTransport;
-      if (transport) {
+    if (trace.type === "bwe")
+    {
+      const transport = mediaState.mediasoup.rtp.recvTransport;
+      if (transport)
+      {
         log.log(
           "[BWE] Forward to Kurento, availableBitrate:",
           trace.info.availableBitrate
@@ -317,7 +330,7 @@ async function handleWebrtcSendStart() {
 // Calls WebRtcTransport.connect() whenever the browser client part is ready
 
 async function handleWebrtcRecvConnect(dtlsParams) {
-  const transport = global.mediasoup.webrtc.recvTransport;
+  const transport = mediaState.mediasoup.webrtc.recvTransport;
 
   await transport.connect({ dtlsParameters: dtlsParams });
 
@@ -329,7 +342,7 @@ async function handleWebrtcRecvConnect(dtlsParams) {
 // Calls WebRtcTransport.connect() whenever the browser client part is ready
 
 async function handleWebrtcSendConnect(dtlsParams) {
-  const transport = global.mediasoup.webrtc.sendTransport;
+  const transport = mediaState.mediasoup.webrtc.sendTransport;
 
   await transport.connect({ dtlsParameters: dtlsParams });
 
@@ -341,19 +354,20 @@ async function handleWebrtcSendConnect(dtlsParams) {
 // Calls WebRtcTransport.produce() to start receiving media from the browser
 
 async function handleWebrtcRecvProduce(produceParams, callback) {
-  const transport = global.mediasoup.webrtc.recvTransport;
+  const transport = mediaState.mediasoup.webrtc.recvTransport;
 
   const producer = await transport.produce(produceParams);
-  switch (producer.kind) {
+  switch (producer.kind)
+  {
     case "audio":
-      global.mediasoup.webrtc.audioProducer = producer;
+      mediaState.mediasoup.webrtc.audioProducer = producer;
       break;
     case "video":
-      global.mediasoup.webrtc.videoProducer = producer;
+      mediaState.mediasoup.webrtc.videoProducer = producer;
       break;
   }
 
-  global.server.socket.emit("WEBRTC_RECV_PRODUCER_READY", producer.kind);
+  mediaState.server.socket.emit("WEBRTC_RECV_PRODUCER_READY", producer.kind);
 
   log(
     "[handleWebrtcRecvProduce] mediasoup WebRTC RECV producer created, kind: %s, type: %s, paused: %s",
@@ -375,10 +389,11 @@ async function handleWebrtcRecvProduce(produceParams, callback) {
 // Calls WebRtcTransport.consume() to start sending media to the browser
 
 async function handleWebrtcSendConsume(rtpCaps) {
-  const transport = global.mediasoup.webrtc.sendTransport;
+  const transport = mediaState.mediasoup.webrtc.sendTransport;
 
-  const producer = global.mediasoup.rtp.recvProducer;
-  if (!producer) {
+  const producer = mediaState.mediasoup.rtp.recvProducer;
+  if (!producer)
+  {
     log.error("[handleWebrtcSendConsume] BUG: The producer doesn't exist!");
     process.exit(1);
   }
@@ -388,7 +403,7 @@ async function handleWebrtcSendConsume(rtpCaps) {
     rtpCapabilities: rtpCaps,
     paused: false,
   });
-  global.mediasoup.webrtc.videoConsumer = consumer;
+  mediaState.mediasoup.webrtc.videoConsumer = consumer;
 
   log(
     "[handleWebrtcSendConsume] mediasoup WebRTC SEND consumer created, kind: %s, type: %s, paused: %s",
@@ -435,11 +450,11 @@ async function startKurento() {
   log("[startKurento] Connect with Kurento Media Server:", kurentoUrl);
 
   const kmsClient = new KurentoClient(kurentoUrl);
-  global.kurento.client = kmsClient;
+  mediaState.kurento.client = kmsClient;
   log("[startKurento] Kurento client connected");
 
   const kmsPipeline = await kmsClient.create("MediaPipeline");
-  global.kurento.pipeline = kmsPipeline;
+  mediaState.kurento.pipeline = kmsPipeline;
   log("[startKurento] Kurento pipeline created");
 }
 
@@ -448,13 +463,14 @@ async function startKurento() {
 // Helper function:
 // Get mediasoup router's preferred PayloadType
 function getMsPayloadType(mimeType) {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
   let pt = 0;
 
   const codec = router.rtpCapabilities.codecs.find(
     (c) => c.mimeType === mimeType
   );
-  if (codec) {
+  if (codec)
+  {
     pt = codec.preferredPayloadType;
   }
 
@@ -466,13 +482,14 @@ function getMsPayloadType(mimeType) {
 // Helper function:
 // Get mediasoup router's preferred HeaderExtension ID
 function getMsHeaderExtId(kind, name) {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
   let id = 0;
 
   const ext = router.rtpCapabilities.headerExtensions.find(
     (e) => e.kind === kind && e.uri.includes(name)
   );
-  if (ext) {
+  if (ext)
+  {
     id = ext.preferredId;
   }
 
@@ -488,7 +505,8 @@ function getMsHeaderExtId(kind, name) {
 // `getRtpEncodings()`, but it lacks something like `getRtcpParameters()`.
 function getRtcpParameters(sdpObject, kind) {
   const mediaObject = (sdpObject.media || []).find((m) => m.type === kind);
-  if (!mediaObject) {
+  if (!mediaObject)
+  {
     throw new Error(`m=${kind} section not found`);
   }
 
@@ -507,8 +525,8 @@ function getRtcpParameters(sdpObject, kind) {
 // ----------------------------------------------------------------------------
 
 async function startKurentoRtpConsumer(enableSrtp) {
-  const msRouter = global.mediasoup.router;
-  const kmsPipeline = global.kurento.pipeline;
+  const msRouter = mediaState.mediasoup.router;
+  const kmsPipeline = mediaState.kurento.pipeline;
 
   // mediasoup RTP transport (send media to Kurento)
   // -----------------------------------------------
@@ -528,7 +546,7 @@ async function startKurentoRtpConsumer(enableSrtp) {
 
     ...CONFIG.mediasoup.plainTransport,
   });
-  global.mediasoup.rtp.sendTransport = msTransport;
+  mediaState.mediasoup.rtp.sendTransport = msTransport;
 
   /*
   RTP: [mediasoup --> Kurento]
@@ -542,9 +560,11 @@ async function startKurentoRtpConsumer(enableSrtp) {
   */
   await msTransport.enableTraceEvent(["bwe"]);
   msTransport.on("trace", async (trace) => {
-    if (trace.type === "bwe") {
-      const transport = global.mediasoup.webrtc.recvTransport;
-      if (transport) {
+    if (trace.type === "bwe")
+    {
+      const transport = mediaState.mediasoup.webrtc.recvTransport;
+      if (transport)
+      {
         log.log(
           "[BWE] Forward to browser, availableBitrate:",
           trace.info.availableBitrate
@@ -606,9 +626,11 @@ async function startKurentoRtpConsumer(enableSrtp) {
     ],
   };
 
-  try {
+  try
+  {
     MediasoupOrtc.validateRtpCapabilities(kmsRtpCaps);
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[startKurentoRtpConsumer] ERROR:", err);
     process.exit(1);
   }
@@ -619,11 +641,11 @@ async function startKurentoRtpConsumer(enableSrtp) {
   );
 
   const msConsumer = await msTransport.consume({
-    producerId: global.mediasoup.webrtc.videoProducer.id,
+    producerId: mediaState.mediasoup.webrtc.videoProducer.id,
     rtpCapabilities: kmsRtpCaps,
     paused: false,
   });
-  global.mediasoup.rtp.sendConsumer = msConsumer;
+  mediaState.mediasoup.rtp.sendConsumer = msConsumer;
 
   log(
     "[startKurentoRtpConsumer] mediasoup RTP SEND consumer created, kind: %s, type: %s, paused: %s, SSRC: %s CNAME: %s",
@@ -657,7 +679,8 @@ async function startKurentoRtpConsumer(enableSrtp) {
   let sdpCryptoLine = "";
   let kmsCrypto = undefined;
 
-  if (enableSrtp) {
+  if (enableSrtp)
+  {
     // Use SRTP protocol
     sdpProtocol = "RTP/SAVPF";
 
@@ -696,7 +719,7 @@ async function startKurentoRtpConsumer(enableSrtp) {
   const kmsRtpEndpoint = await kmsPipeline.create("RtpEndpoint", {
     crypto: kmsCrypto,
   });
-  global.kurento.rtp.recvEndpoint = kmsRtpEndpoint;
+  mediaState.kurento.rtp.recvEndpoint = kmsRtpEndpoint;
 
   log(
     "[startKurentoRtpConsumer] SDP Offer from App to Kurento RTP RECV:\n%s",
@@ -728,7 +751,8 @@ async function startKurentoRtpConsumer(enableSrtp) {
   const mediaObj = (kmsSdpAnswerObj.media || []).find(
     (m) => m.type === "video"
   );
-  if (!mediaObj) {
+  if (!mediaObj)
+  {
     throw new Error("[startKurentoRtpConsumer] m=video section not found");
   }
 
@@ -742,7 +766,8 @@ async function startKurentoRtpConsumer(enableSrtp) {
 
   const kmsPortRtp = mediaObj.port;
   let kmsPortRtcp = kmsPortRtp + 1;
-  if ("rtcp" in mediaObj) {
+  if ("rtcp" in mediaObj)
+  {
     // If "a=rtcp:<Port>" is found in the SDP Answer
     kmsPortRtcp = mediaObj.rtcp.port;
   }
@@ -758,7 +783,8 @@ async function startKurentoRtpConsumer(enableSrtp) {
   // (S)RTCP packets to/from Kurento
 
   let srtpParams = undefined;
-  if (enableSrtp) {
+  if (enableSrtp)
+  {
     srtpParams = {
       cryptoSuite: CryptoSuiteMediasoup,
       keyBase64: CONFIG.srtp.keyBase64,
@@ -794,8 +820,8 @@ async function startKurentoRtpConsumer(enableSrtp) {
 // ----------------------------------------------------------------------------
 
 async function startKurentoRtpProducer(enableSrtp) {
-  const msRouter = global.mediasoup.router;
-  const kmsPipeline = global.kurento.pipeline;
+  const msRouter = mediaState.mediasoup.router;
+  const kmsPipeline = mediaState.kurento.pipeline;
 
   // mediasoup RTP transport (receive media from Kurento)
   // ----------------------------------------------------
@@ -815,7 +841,7 @@ async function startKurentoRtpProducer(enableSrtp) {
 
     ...CONFIG.mediasoup.plainTransport,
   });
-  global.mediasoup.rtp.recvTransport = msTransport;
+  mediaState.mediasoup.rtp.recvTransport = msTransport;
 
   log(
     "[startKurentoRtpProducer] mediasoup RTP RECV transport created: %s:%d (%s)",
@@ -871,7 +897,8 @@ async function startKurentoRtpProducer(enableSrtp) {
   let sdpCryptoLine = "";
   let kmsCrypto = undefined;
 
-  if (enableSrtp) {
+  if (enableSrtp)
+  {
     // Use SRTP protocol
     sdpProtocol = "RTP/SAVPF";
 
@@ -909,7 +936,7 @@ async function startKurentoRtpProducer(enableSrtp) {
   const kmsRtpEndpoint = await kmsPipeline.create("RtpEndpoint", {
     crypto: kmsCrypto,
   });
-  global.kurento.rtp.sendEndpoint = kmsRtpEndpoint;
+  mediaState.kurento.rtp.sendEndpoint = kmsRtpEndpoint;
 
   // Set maximum bitrate higher than default of 500 kbps
   await kmsRtpEndpoint.setMaxVideoSendBandwidth(2000); // Send max 2 mbps
@@ -946,9 +973,11 @@ async function startKurentoRtpProducer(enableSrtp) {
     sdpObject: kmsSdpAnswerObj,
   });
 
-  try {
+  try
+  {
     MediasoupOrtc.validateRtpCapabilities(kmsRtpCaps);
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[startKurentoRtpProducer] ERROR:", err);
     process.exit(1);
   }
@@ -959,7 +988,7 @@ async function startKurentoRtpProducer(enableSrtp) {
   );
 
   const msExtendedRtpCaps = MediasoupOrtc.getExtendedRtpCapabilities(
-    global.mediasoup.router.rtpCapabilities,
+    mediaState.mediasoup.router.rtpCapabilities,
     kmsRtpCaps
   );
 
@@ -996,17 +1025,19 @@ async function startKurentoRtpProducer(enableSrtp) {
   // ---------------------------------------------------
 
   let msProducer;
-  try {
+  try
+  {
     msProducer = await msTransport.produce({
       kind: "video",
       rtpParameters: kmsRtpSendParams,
       paused: false,
     });
-  } catch (err) {
+  } catch (err)
+  {
     log.error("[startKurentoRtpProducer] ERROR:", err);
     process.exit(1);
   }
-  global.mediasoup.rtp.recvProducer = msProducer;
+  mediaState.mediasoup.rtp.recvProducer = msProducer;
 
   log(
     "[startKurentoRtpProducer] mediasoup RTP RECV producer created, kind: %s, type: %s, paused: %s",
@@ -1024,7 +1055,8 @@ async function startKurentoRtpProducer(enableSrtp) {
   // (S)RTCP packets from/to Kurento
 
   let srtpParams = undefined;
-  if (enableSrtp) {
+  if (enableSrtp)
+  {
     srtpParams = {
       cryptoSuite: CryptoSuiteMediasoup,
       keyBase64: CONFIG.srtp.keyBase64,
@@ -1039,14 +1071,14 @@ async function startKurentoRtpProducer(enableSrtp) {
 // ----------------------------------------------------------------------------
 
 async function startKurentoFilter() {
-  const kmsPipeline = global.kurento.pipeline;
-  const recvEndpoint = global.kurento.rtp.recvEndpoint;
-  const sendEndpoint = global.kurento.rtp.sendEndpoint;
+  const kmsPipeline = mediaState.kurento.pipeline;
+  const recvEndpoint = mediaState.kurento.rtp.recvEndpoint;
+  const sendEndpoint = mediaState.kurento.rtp.sendEndpoint;
 
   const filter = await kmsPipeline.create("GStreamerFilter", {
     command: "videobalance saturation=0.0",
   });
-  global.kurento.filter = filter;
+  mediaState.kurento.filter = filter;
 
   await recvEndpoint.connect(filter);
   await filter.connect(sendEndpoint);
@@ -1057,19 +1089,19 @@ async function startKurentoFilter() {
 async function handleDebug() {
   log(
     "[DEBUG] mediasoup RTP SEND transport stats (send to Kurento):\n",
-    await global.mediasoup.rtp.sendTransport.getStats()
+    await mediaState.mediasoup.rtp.sendTransport.getStats()
   );
   log(
     "[DEBUG] mediasoup RTP SEND consumer stats (send to Kurento):\n",
-    await global.mediasoup.rtp.sendConsumer.getStats()
+    await mediaState.mediasoup.rtp.sendConsumer.getStats()
   );
   log(
     "[DEBUG] mediasoup RTP RECV transport stats (receive from Kurento):\n",
-    await global.mediasoup.rtp.recvTransport.getStats()
+    await mediaState.mediasoup.rtp.recvTransport.getStats()
   );
   log(
     "[DEBUG] mediasoup RTP RECV producer stats (receive from Kurento):\n",
-    await global.mediasoup.rtp.recvProducer.getStats()
+    await mediaState.mediasoup.rtp.recvProducer.getStats()
   );
 }
 

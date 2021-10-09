@@ -55,12 +55,14 @@ const global = {
 // =======
 
 // Send all logging to both console and WebSocket
-for (const name of ["log", "info", "warn", "error"]) {
+for (const name of ["log", "info", "warn", "error"])
+{
   const method = console[name];
   console[name] = function (...args) {
     method(...args);
-    if (global.server.socket) {
-      global.server.socket.emit("LOG", Util.format(...args));
+    if (mediaState.server.socket)
+    {
+      mediaState.server.socket.emit("LOG", Util.format(...args));
     }
   };
 }
@@ -71,7 +73,7 @@ for (const name of ["log", "info", "warn", "error"]) {
 // ============
 {
   const expressApp = Express();
-  global.server.expressApp = expressApp;
+  mediaState.server.expressApp = expressApp;
   expressApp.use("/", Express.static(__dirname));
 
   const https = Https.createServer(
@@ -81,7 +83,7 @@ for (const name of ["log", "info", "warn", "error"]) {
     },
     expressApp
   );
-  global.server.https = https;
+  mediaState.server.https = https;
 
   https.on("listening", () => {
     console.log(
@@ -92,9 +94,11 @@ for (const name of ["log", "info", "warn", "error"]) {
     console.error("HTTPS error:", err.message);
   });
   https.on("tlsClientError", (err) => {
-    if (err.message.includes("alert number 46")) {
+    if (err.message.includes("alert number 46"))
+    {
       // Ignore: this is the client browser rejecting our self-signed certificate
-    } else {
+    } else
+    {
       console.error("TLS error:", err);
     }
   });
@@ -106,21 +110,21 @@ for (const name of ["log", "info", "warn", "error"]) {
 // WebSocket server
 // ================
 {
-  const socketServer = SocketServer(global.server.https, {
+  const socketServer = SocketServer(mediaState.server.https, {
     path: CONFIG.https.wsPath,
     serveClient: false,
     pingTimeout: CONFIG.https.wsPingTimeout,
     pingInterval: CONFIG.https.wsPingInterval,
     transports: ["websocket"],
   });
-  global.server.socketServer = socketServer;
+  mediaState.server.socketServer = socketServer;
 
   socketServer.on("connect", (socket) => {
     console.log(
       "WebSocket server connected, port: %s",
       socket.request.connection.remotePort
     );
-    global.server.socket = socket;
+    mediaState.server.socket = socket;
 
     // Events sent by the client's "socket.io-promise" have the fixed name
     // "request", and a field "type" that we use as identifier
@@ -140,7 +144,8 @@ for (const name of ["log", "info", "warn", "error"]) {
 async function handleRequest(request, callback) {
   let responseData = null;
 
-  switch (request.type) {
+  switch (request.type)
+  {
     case "START_MEDIASOUP":
       responseData = await handleStartMediasoup(request.vCodecName);
       break;
@@ -161,15 +166,15 @@ async function handleRequest(request, callback) {
 // ==============
 
 function audioEnabled() {
-  return global.mediasoup.webrtc.audioProducer !== null;
+  return mediaState.mediasoup.webrtc.audioProducer !== null;
 }
 
 function videoEnabled() {
-  return global.mediasoup.webrtc.videoProducer !== null;
+  return mediaState.mediasoup.webrtc.videoProducer !== null;
 }
 
 function h264Enabled() {
-  const codec = global.mediasoup.router.rtpCapabilities.codecs.find(
+  const codec = mediaState.mediasoup.router.rtpCapabilities.codecs.find(
     (c) => c.mimeType === "video/H264"
   );
   return codec !== undefined;
@@ -183,7 +188,7 @@ function h264Enabled() {
  */
 async function handleStartMediasoup(vCodecName) {
   const worker = await Mediasoup.createWorker(CONFIG.mediasoup.worker);
-  global.mediasoup.worker = worker;
+  mediaState.mediasoup.worker = worker;
 
   worker.on("died", () => {
     console.error(
@@ -204,7 +209,8 @@ async function handleStartMediasoup(vCodecName) {
   const audioCodec = CONFIG.mediasoup.router.mediaCodecs.find(
     (c) => c.mimeType === "audio/opus"
   );
-  if (!audioCodec) {
+  if (!audioCodec)
+  {
     console.error("Undefined codec mime type: audio/opus -- Check config.js");
     process.exit(1);
   }
@@ -213,7 +219,8 @@ async function handleStartMediasoup(vCodecName) {
   const videoCodec = CONFIG.mediasoup.router.mediaCodecs.find(
     (c) => c.mimeType === `video/${vCodecName}`
   );
-  if (!videoCodec) {
+  if (!videoCodec)
+  {
     console.error(
       `Undefined codec mime type: video/${vCodecName} -- Check config.js`
     );
@@ -222,13 +229,15 @@ async function handleStartMediasoup(vCodecName) {
   routerOptions.mediaCodecs.push(videoCodec);
 
   let router;
-  try {
+  try
+  {
     router = await worker.createRouter(routerOptions);
-  } catch (err) {
+  } catch (err)
+  {
     console.error("BUG:", err);
     process.exit(1);
   }
-  global.mediasoup.router = router;
+  mediaState.mediasoup.router = router;
 
   // At this point, the computed "router.rtpCapabilities" includes the
   // router codecs enhanced with retransmission and RTCP capabilities,
@@ -246,12 +255,12 @@ async function handleStartMediasoup(vCodecName) {
 // Creates a mediasoup WebRTC RECV transport
 
 async function handleWebrtcRecvStart() {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
 
   const transport = await router.createWebRtcTransport(
     CONFIG.mediasoup.webrtcTransport
   );
-  global.mediasoup.webrtc.recvTransport = transport;
+  mediaState.mediasoup.webrtc.recvTransport = transport;
 
   console.log("mediasoup WebRTC RECV transport created");
 
@@ -276,7 +285,7 @@ async function handleWebrtcRecvStart() {
 // Calls WebRtcTransport.connect() whenever the browser client part is ready
 
 async function handleWebrtcRecvConnect(dtlsParameters) {
-  const transport = global.mediasoup.webrtc.recvTransport;
+  const transport = mediaState.mediasoup.webrtc.recvTransport;
 
   await transport.connect({ dtlsParameters });
 
@@ -288,19 +297,20 @@ async function handleWebrtcRecvConnect(dtlsParameters) {
 // Calls WebRtcTransport.produce() to start receiving media from the browser
 
 async function handleWebrtcRecvProduce(produceParameters, callback) {
-  const transport = global.mediasoup.webrtc.recvTransport;
+  const transport = mediaState.mediasoup.webrtc.recvTransport;
 
   const producer = await transport.produce(produceParameters);
-  switch (producer.kind) {
+  switch (producer.kind)
+  {
     case "audio":
-      global.mediasoup.webrtc.audioProducer = producer;
+      mediaState.mediasoup.webrtc.audioProducer = producer;
       break;
     case "video":
-      global.mediasoup.webrtc.videoProducer = producer;
+      mediaState.mediasoup.webrtc.videoProducer = producer;
       break;
   }
 
-  global.server.socket.emit("WEBRTC_RECV_PRODUCER_READY", producer.kind);
+  mediaState.server.socket.emit("WEBRTC_RECV_PRODUCER_READY", producer.kind);
 
   console.log(
     "mediasoup WebRTC RECV producer created, kind: %s, type: %s, paused: %s",
@@ -320,14 +330,15 @@ async function handleWebrtcRecvProduce(produceParameters, callback) {
 // ----------------------------------------------------------------------------
 
 async function handleStartRecording(recorder) {
-  const router = global.mediasoup.router;
+  const router = mediaState.mediasoup.router;
 
   const useAudio = audioEnabled();
   const useVideo = videoEnabled();
 
   // Start mediasoup's RTP consumer(s)
 
-  if (useAudio) {
+  if (useAudio)
+  {
     const rtpTransport = await router.createPlainTransport({
       // No RTP will be received from the remote side
       comedia: false,
@@ -337,7 +348,7 @@ async function handleStartRecording(recorder) {
 
       ...CONFIG.mediasoup.plainTransport,
     });
-    global.mediasoup.rtp.audioTransport = rtpTransport;
+    mediaState.mediasoup.rtp.audioTransport = rtpTransport;
 
     await rtpTransport.connect({
       ip: CONFIG.mediasoup.recording.ip,
@@ -364,11 +375,11 @@ async function handleStartRecording(recorder) {
     );
 
     const rtpConsumer = await rtpTransport.consume({
-      producerId: global.mediasoup.webrtc.audioProducer.id,
+      producerId: mediaState.mediasoup.webrtc.audioProducer.id,
       rtpCapabilities: router.rtpCapabilities, // Assume the recorder supports same formats as mediasoup's router
       paused: true,
     });
-    global.mediasoup.rtp.audioConsumer = rtpConsumer;
+    mediaState.mediasoup.rtp.audioConsumer = rtpConsumer;
 
     console.log(
       "mediasoup AUDIO RTP SEND consumer created, kind: %s, type: %s, paused: %s, SSRC: %s CNAME: %s",
@@ -380,7 +391,8 @@ async function handleStartRecording(recorder) {
     );
   }
 
-  if (useVideo) {
+  if (useVideo)
+  {
     const rtpTransport = await router.createPlainTransport({
       // No RTP will be received from the remote side
       comedia: false,
@@ -390,7 +402,7 @@ async function handleStartRecording(recorder) {
 
       ...CONFIG.mediasoup.plainTransport,
     });
-    global.mediasoup.rtp.videoTransport = rtpTransport;
+    mediaState.mediasoup.rtp.videoTransport = rtpTransport;
 
     await rtpTransport.connect({
       ip: CONFIG.mediasoup.recording.ip,
@@ -417,11 +429,11 @@ async function handleStartRecording(recorder) {
     );
 
     const rtpConsumer = await rtpTransport.consume({
-      producerId: global.mediasoup.webrtc.videoProducer.id,
+      producerId: mediaState.mediasoup.webrtc.videoProducer.id,
       rtpCapabilities: router.rtpCapabilities, // Assume the recorder supports same formats as mediasoup's router
       paused: true,
     });
-    global.mediasoup.rtp.videoConsumer = rtpConsumer;
+    mediaState.mediasoup.rtp.videoConsumer = rtpConsumer;
 
     console.log(
       "mediasoup VIDEO RTP SEND consumer created, kind: %s, type: %s, paused: %s, SSRC: %s CNAME: %s",
@@ -435,7 +447,8 @@ async function handleStartRecording(recorder) {
 
   // ----
 
-  switch (recorder) {
+  switch (recorder)
+  {
     case "ffmpeg":
       await startRecordingFfmpeg();
       break;
@@ -450,8 +463,9 @@ async function handleStartRecording(recorder) {
       break;
   }
 
-  if (useAudio) {
-    const consumer = global.mediasoup.rtp.audioConsumer;
+  if (useAudio)
+  {
+    const consumer = mediaState.mediasoup.rtp.audioConsumer;
     console.log(
       "Resume mediasoup RTP consumer, kind: %s, type: %s",
       consumer.kind,
@@ -459,8 +473,9 @@ async function handleStartRecording(recorder) {
     );
     consumer.resume();
   }
-  if (useVideo) {
-    const consumer = global.mediasoup.rtp.videoConsumer;
+  if (useVideo)
+  {
+    const consumer = mediaState.mediasoup.rtp.videoConsumer;
     console.log(
       "Resume mediasoup RTP consumer, kind: %s, type: %s",
       consumer.kind,
@@ -520,29 +535,36 @@ function startRecordingFfmpeg() {
   });
   const ffmpegVerMatch = /ffmpeg version (\d+)\.(\d+)\.(\d+)/.exec(ffmpegOut);
   let ffmpegOk = false;
-  if (ffmpegOut.startsWith("ffmpeg version git")) {
+  if (ffmpegOut.startsWith("ffmpeg version git"))
+  {
     // Accept any Git build (it's up to the developer to ensure that a recent
     // enough version of the FFmpeg source code has been built)
     ffmpegOk = true;
-  } else if (ffmpegVerMatch) {
+  } else if (ffmpegVerMatch)
+  {
     const ffmpegVerMajor = parseInt(ffmpegVerMatch[1], 10);
-    if (ffmpegVerMajor >= 4) {
+    if (ffmpegVerMajor >= 4)
+    {
       ffmpegOk = true;
     }
   }
 
-  if (!ffmpegOk) {
+  if (!ffmpegOk)
+  {
     console.error("FFmpeg >= 4.0.0 not found in $PATH; please install it");
     process.exit(1);
   }
 
-  if (useAudio) {
+  if (useAudio)
+  {
     cmdCodec += " -map 0:a:0 -c:a copy";
   }
-  if (useVideo) {
+  if (useVideo)
+  {
     cmdCodec += " -map 0:v:0 -c:v copy";
 
-    if (useH264) {
+    if (useH264)
+    {
       cmdInputPath = `${__dirname}/recording/input-h264.sdp`;
       cmdOutputPath = `${__dirname}/recording/output-ffmpeg-h264.mp4`;
 
@@ -571,7 +593,7 @@ function startRecordingFfmpeg() {
   console.log(`Run command: ${cmdProgram} ${cmdArgStr}`);
 
   let recProcess = Process.spawn(cmdProgram, cmdArgStr.split(/\s+/));
-  global.recProcess = recProcess;
+  mediaState.recProcess = recProcess;
 
   recProcess.on("error", (err) => {
     console.error("Recording process error:", err);
@@ -580,12 +602,14 @@ function startRecordingFfmpeg() {
   recProcess.on("exit", (code, signal) => {
     console.log("Recording process exit, code: %d, signal: %s", code, signal);
 
-    global.recProcess = null;
+    mediaState.recProcess = null;
     stopMediasoupRtp();
 
-    if (!signal || signal === "SIGINT") {
+    if (!signal || signal === "SIGINT")
+    {
       console.log("Recording stopped");
-    } else {
+    } else
+    {
       console.warn(
         "Recording process didn't exit cleanly, output file might be corrupt"
       );
@@ -600,7 +624,8 @@ function startRecordingFfmpeg() {
       .filter(Boolean) // Filter out empty strings
       .forEach((line) => {
         console.log(line);
-        if (line.startsWith("ffmpeg version")) {
+        if (line.startsWith("ffmpeg version"))
+        {
           setTimeout(() => {
             recResolve();
           }, 1000);
@@ -657,7 +682,8 @@ function startRecordingGstreamer() {
   let cmdAudioBranch = "";
   let cmdVideoBranch = "";
 
-  if (useAudio) {
+  if (useAudio)
+  {
     // prettier-ignore
     cmdAudioBranch =
       "demux. ! queue \
@@ -666,8 +692,10 @@ function startRecordingGstreamer() {
       ! mux.";
   }
 
-  if (useVideo) {
-    if (useH264) {
+  if (useVideo)
+  {
+    if (useH264)
+    {
       cmdInputPath = `${__dirname}/recording/input-h264.sdp`;
       cmdOutputPath = `${__dirname}/recording/output-gstreamer-h264.mp4`;
       cmdMux = `mp4mux faststart=true faststart-file=${cmdOutputPath}.tmp`;
@@ -678,7 +706,8 @@ function startRecordingGstreamer() {
         ! rtph264depay \
         ! h264parse \
         ! mux.";
-    } else {
+    } else
+    {
       // prettier-ignore
       cmdVideoBranch =
         "demux. ! queue \
@@ -712,7 +741,7 @@ function startRecordingGstreamer() {
   let recProcess = Process.spawn(cmdProgram, cmdArgStr.split(/\s+/), {
     env: cmdEnv,
   });
-  global.recProcess = recProcess;
+  mediaState.recProcess = recProcess;
 
   recProcess.on("error", (err) => {
     console.error("Recording process error:", err);
@@ -721,12 +750,14 @@ function startRecordingGstreamer() {
   recProcess.on("exit", (code, signal) => {
     console.log("Recording process exit, code: %d, signal: %s", code, signal);
 
-    global.recProcess = null;
+    mediaState.recProcess = null;
     stopMediasoupRtp();
 
-    if (!signal || signal === "SIGINT") {
+    if (!signal || signal === "SIGINT")
+    {
       console.log("Recording stopped");
-    } else {
+    } else
+    {
       console.warn(
         "Recording process didn't exit cleanly, output file might be corrupt"
       );
@@ -741,7 +772,8 @@ function startRecordingGstreamer() {
       .filter(Boolean) // Filter out empty strings
       .forEach((line) => {
         console.log(line);
-        if (line.startsWith("Setting pipeline to PLAYING")) {
+        if (line.startsWith("Setting pipeline to PLAYING"))
+        {
           setTimeout(() => {
             recResolve();
           }, 1000);
@@ -777,7 +809,8 @@ async function startRecordingExternal() {
   const sleep = (ms) => {
     return new Promise((resolve) => setTimeout(resolve, ms));
   };
-  for (let time = timeout; time > 0; time--) {
+  for (let time = timeout; time > 0; time--)
+  {
     console.log(`Recording starts in ${time} seconds...`);
 
     await sleep(1000);
@@ -791,9 +824,11 @@ async function startRecordingExternal() {
 // ----------------------------------------------------------------------------
 
 async function handleStopRecording() {
-  if (global.recProcess) {
-    global.recProcess.kill("SIGINT");
-  } else {
+  if (mediaState.recProcess)
+  {
+    mediaState.recProcess.kill("SIGINT");
+  } else
+  {
     stopMediasoupRtp();
   }
 }
@@ -806,14 +841,16 @@ function stopMediasoupRtp() {
   const useAudio = audioEnabled();
   const useVideo = videoEnabled();
 
-  if (useAudio) {
-    global.mediasoup.rtp.audioConsumer.close();
-    global.mediasoup.rtp.audioTransport.close();
+  if (useAudio)
+  {
+    mediaState.mediasoup.rtp.audioConsumer.close();
+    mediaState.mediasoup.rtp.audioTransport.close();
   }
 
-  if (useVideo) {
-    global.mediasoup.rtp.videoConsumer.close();
-    global.mediasoup.rtp.videoTransport.close();
+  if (useVideo)
+  {
+    mediaState.mediasoup.rtp.videoConsumer.close();
+    mediaState.mediasoup.rtp.videoTransport.close();
   }
 }
 

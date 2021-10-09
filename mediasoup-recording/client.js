@@ -60,19 +60,21 @@ window.addEventListener("load", function () {
   console.log("Page loaded, connect WebSocket");
   connectSocket();
 
-  if ("adapter" in window) {
+  if ("adapter" in window)
+  {
     console.log(
       // eslint-disable-next-line no-undef
       `webrtc-adapter loaded, browser: '${adapter.browserDetails.browser}', version: '${adapter.browserDetails.version}'`
     );
-  } else {
+  } else
+  {
     console.warn("webrtc-adapter is not loaded! an install or config issue?");
   }
 });
 
 window.addEventListener("beforeunload", function () {
   console.log("Page unloading, close WebSocket");
-  global.server.socket.close();
+  mediaState.server.socket.close();
 });
 
 // ----
@@ -86,7 +88,7 @@ function connectSocket() {
     path: CONFIG.https.wsPath,
     transports: ["websocket"],
   });
-  global.server.socket = socket;
+  mediaState.server.socket = socket;
 
   socket.on("connect", () => {
     console.log("WebSocket connected");
@@ -103,17 +105,19 @@ function connectSocket() {
 
   socket.on("WEBRTC_RECV_PRODUCER_READY", (kind) => {
     console.log(`Server producer is ready, kind: ${kind}`);
-    switch (kind) {
+    switch (kind)
+    {
       case "audio":
-        global.recording.waitForAudio = false;
+        mediaState.recording.waitForAudio = false;
         break;
       case "video":
-        global.recording.waitForVideo = false;
+        mediaState.recording.waitForVideo = false;
         break;
     }
 
     // Update UI
-    if (!global.recording.waitForAudio && !global.recording.waitForVideo) {
+    if (!mediaState.recording.waitForAudio && !mediaState.recording.waitForVideo)
+    {
       ui.settings.disabled = true;
       ui.startWebRTC.disabled = true;
       ui.startRecording.disabled = false;
@@ -133,7 +137,7 @@ async function startWebRTC() {
 // ----
 
 async function startMediasoup() {
-  const socket = global.server.socket;
+  const socket = mediaState.server.socket;
 
   const socketRequest = SocketPromise(socket);
   const uiVCodecName = document.querySelector(
@@ -148,17 +152,21 @@ async function startMediasoup() {
   console.log("[server] mediasoup router created");
 
   let device = null;
-  try {
+  try
+  {
     device = new MediasoupClient.Device();
-  } catch (err) {
+  } catch (err)
+  {
     console.error(err);
     return;
   }
-  global.mediasoup.device = device;
+  mediaState.mediasoup.device = device;
 
-  try {
+  try
+  {
     await device.load({ routerRtpCapabilities });
-  } catch (err) {
+  } catch (err)
+  {
     console.error(err);
     return;
   }
@@ -177,8 +185,8 @@ async function startMediasoup() {
 // ----
 
 async function startWebrtcSend() {
-  const device = global.mediasoup.device;
-  const socket = global.server.socket;
+  const device = mediaState.mediasoup.device;
+  const socket = mediaState.server.socket;
 
   // mediasoup WebRTC transport
   // --------------------------
@@ -190,13 +198,15 @@ async function startWebrtcSend() {
   console.log("[server] WebRTC RECV transport created");
 
   let transport;
-  try {
+  try
+  {
     transport = device.createSendTransport(webrtcTransportOptions);
-  } catch (err) {
+  } catch (err)
+  {
     console.error(err);
     return;
   }
-  global.mediasoup.webrtc.transport = transport;
+  mediaState.mediasoup.webrtc.transport = transport;
 
   console.log("[client] WebRTC SEND transport created");
 
@@ -224,22 +234,26 @@ async function startWebrtcSend() {
 
   let useAudio = false;
   let useVideo = false;
-  if (uiMedia.indexOf("audio") !== -1) {
+  if (uiMedia.indexOf("audio") !== -1)
+  {
     useAudio = true;
-    global.recording.waitForAudio = true;
+    mediaState.recording.waitForAudio = true;
   }
-  if (uiMedia.indexOf("video") !== -1) {
+  if (uiMedia.indexOf("video") !== -1)
+  {
     useVideo = true;
-    global.recording.waitForVideo = true;
+    mediaState.recording.waitForVideo = true;
   }
 
   let stream;
-  try {
+  try
+  {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: useAudio,
       video: useVideo,
     });
-  } catch (err) {
+  } catch (err)
+  {
     console.error(err);
     return;
   }
@@ -248,19 +262,21 @@ async function startWebrtcSend() {
 
   // Start mediasoup-client's WebRTC producer(s)
 
-  if (useAudio) {
+  if (useAudio)
+  {
     const audioTrack = stream.getAudioTracks()[0];
     const audioProducer = await transport.produce({ track: audioTrack });
-    global.mediasoup.webrtc.audioProducer = audioProducer;
+    mediaState.mediasoup.webrtc.audioProducer = audioProducer;
   }
 
-  if (useVideo) {
+  if (useVideo)
+  {
     const videoTrack = stream.getVideoTracks()[0];
     const videoProducer = await transport.produce({
       track: videoTrack,
       ...CONFIG.mediasoup.client.videoProducer,
     });
-    global.mediasoup.webrtc.videoProducer = videoProducer;
+    mediaState.mediasoup.webrtc.videoProducer = videoProducer;
   }
 }
 
@@ -269,7 +285,7 @@ async function startWebrtcSend() {
 function startRecording() {
   const uiRecorder = document.querySelector("input[name='uiRecorder']:checked")
     .value;
-  global.server.socket.emit("START_RECORDING", uiRecorder);
+  mediaState.server.socket.emit("START_RECORDING", uiRecorder);
 
   // Update UI
   ui.startRecording.disabled = true;
@@ -279,7 +295,7 @@ function startRecording() {
 // ----------------------------------------------------------------------------
 
 function stopRecording() {
-  global.server.socket.emit("STOP_RECORDING");
+  mediaState.server.socket.emit("STOP_RECORDING");
 
   // Update UI
   ui.stopRecording.disabled = true;
